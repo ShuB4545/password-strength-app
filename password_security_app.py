@@ -1,34 +1,8 @@
-# advanced_password_security_lab_multilingual.py
-"""
-Advanced Password Security Lab — Extended (Full, Multilingual)
-Languages: English (en), Hindi (hi), Marathi (mr)
 
-Major Features
-- Full multilingual UI via translation dictionary and helper `tr()`
-- Strength scoring with expanded pattern detection (sequences, palindromes, repeated substrings, keyboard walks, repeated runs, year-like)
-- Shannon entropy + keyspace entropy
-- Breach check (HaveIBeenPwned k‑anonymity range API)
-- Attack models: brute-force, dictionary, hybrid (smart rules)
-- Dictionary upload (e.g., rockyou.txt), plus Diceware-like passphrase generator
-- Hashing simulator (MD5/SHA1/SHA256 and bcrypt if installed)
-- Two charts: Crack time vs length (log) and composition pie
-- Session history with CSV export
-- PDF report export (ReportLab) with localized labels
-- Dark theme CSS polish
-
-Run:
-    pip install streamlit requests reportlab matplotlib pandas bcrypt==4.0.1
-    streamlit run advanced_password_security_lab_multilingual.py
-
-Note: bcrypt is optional. HIBP requires internet. All password inputs are processed locally; HIBP uses SHA‑1 prefix (k‑anonymity).
-"""
-
-# ========================= Imports =========================
 import math
 import hashlib
 import requests
 import io
-import os
 import random
 import time
 from collections import Counter
@@ -58,7 +32,6 @@ DARK_CSS = """
     .stApp { background-color: #0b1220; color: #e5e7eb; }
     h1, h2, h3, h4 { color: #e5e7eb; }
     .stButton>button, .stDownloadButton>button { border-radius: 10px; padding: 0.5rem 1rem; }
-    .css-1d391kg, .css-ocqkz7 { background: #111827 !important; }
     .stProgress > div > div > div { background-image: linear-gradient(90deg, #34d399, #60a5fa); }
     .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; background:#111827; color:#93c5fd; margin-right:6px; font-size:12px; }
 </style>
@@ -89,8 +62,9 @@ T = {
         "bcrypt_ok": "bcrypt library available",
         "bcrypt_missing": "bcrypt not installed — bcrypt simulation disabled (optional).",
 
-        "analyze_header": "1) Analyze a Password",
+        "analyze_header": "Analyze a Password",
         "enter_password": "Enter a password (processed locally):",
+        "strength": "Strength",
         "entropy_keyspace": "Entropy & Keyspace",
         "charset_size": "Charset size",
         "keyspace": "Keyspace",
@@ -127,7 +101,7 @@ T = {
         "saved_history": "Saved to history",
         "type_password": "Type a password above to analyze it (keeps analysis local).",
 
-        "passphrase_header": "2) Passphrase Generator",
+        "passphrase_header": "Passphrase Generator",
         "words_in_pass": "Words in passphrase",
         "separator": "Separator",
         "use_uploaded": "Use uploaded dictionary as wordlist (if available)",
@@ -159,6 +133,7 @@ T = {
         "no_pass_for_pdf": "No passphrase available for PDF generation. Generate one or analyze a password first.",
 
         "footer": "Educational demo — not an enterprise auditor. Consider hashing policies, rate limiting, 2FA, and secure storage.",
+        "about": "About"
     },
     "hi": {
         "app_title": "🔐 उन्नत पासवर्ड सुरक्षा लैब — विस्तारित",
@@ -181,8 +156,9 @@ T = {
         "bcrypt_ok": "bcrypt उपलब्ध है",
         "bcrypt_missing": "bcrypt इंस्टॉल नहीं है — सिम्युलेशन अक्षम (वैकल्पिक)।",
 
-        "analyze_header": "1) पासवर्ड का विश्लेषण करें",
+        "analyze_header": "पासवर्ड का विश्लेषण करें",
         "enter_password": "पासवर्ड दर्ज करें (स्थानीय रूप से संसाधित):",
+        "strength": "मजबूती",
         "entropy_keyspace": "एंट्रॉपी और की‑स्पेस",
         "charset_size": "करेक्टर सेट आकार",
         "keyspace": "की‑स्पेस",
@@ -219,7 +195,7 @@ T = {
         "saved_history": "इतिहास में सहेजा गया",
         "type_password": "ऊपर पासवर्ड टाइप करें — विश्लेषण स्थानीय रहता है।",
 
-        "passphrase_header": "2) पासफ्रेज जेनरेटर",
+        "passphrase_header": "पासफ्रेज जेनरेटर",
         "words_in_pass": "पासफ्रेज में शब्दों की संख्या",
         "separator": "विभाजक",
         "use_uploaded": "अपलोडेड डिक्शनरी को वर्डलिस्ट के रूप में उपयोग करें (यदि उपलब्ध)",
@@ -251,10 +227,11 @@ T = {
         "no_pass_for_pdf": "PDF के लिए कोई पासफ्रेज उपलब्ध नहीं। पहले पासफ्रेज बनाएँ या पासवर्ड विश्लेषित करें।",
 
         "footer": "शैक्षणिक डेमो — एंटरप्राइज़ ऑडिटर नहीं। हैशिंग नीतियाँ, रेट लिमिटिंग, 2FA और सुरक्षित स्टोरेज पर विचार करें।",
+        "about": "परिचय"
     },
     "mr": {
         "app_title": "🔐 उन्नत पासवर्ड सुरक्षा प्रयोगशाळा — विस्तारित",
-        "app_caption": "शैक्षणिक साधन: स्थानिक विश्लेषण; HIBP मध्ये k‑अनामिकता वापरली जाते.",
+        "app_caption": "শैक्षणिक साधन: स्थानिक विश्लेषण; HIBP मध्ये k‑अनामिकता वापरली जाते.",
         "whats_new": "या बहुभाषिक विस्तारित आवृत्तीमध्ये नवीन काय?",
         "whats_new_points": "- अतिरिक्त पॅटर्न तपासणी (पालिंड्रोम, पुनरावृत्ती सबस्ट्रिंग, कीबोर्ड वॉक)\n- हॅश अल्गोरिदम सिम्युलेटर (bcrypt वैकल्पिक)\n- पासफ्रेज जनरेटर आणि इतिहास\n- हल्ला चार्ट आणि परिदृश्य\n- संपूर्ण इंग्रजी/हिंदी/मराठी UI आणि PDF\n- CSV/PDF निर्यात",
 
@@ -273,8 +250,9 @@ T = {
         "bcrypt_ok": "bcrypt उपलब्ध आहे",
         "bcrypt_missing": "bcrypt इंस्टॉल नाही — सिम्युलेशन अक्षम (ऐच्छिक).",
 
-        "analyze_header": "1) पासवर्ड विश्लेषण करा",
+        "analyze_header": "पासवर्ड विश्लेषण करा",
         "enter_password": "पासवर्ड टाका (स्थानिकरीत्या प्रक्रिया)",
+        "strength": "मजबूती",
         "entropy_keyspace": "एन्ट्रॉपी आणि की‑स्पेस",
         "charset_size": "कॅरेक्टर सेट आकार",
         "keyspace": "की‑स्पेस",
@@ -302,7 +280,7 @@ T = {
         "looks_strong": "पासवर्ड मजबूत दिसतो. लांब पासफ्रेज आणि पासवर्ड मॅनेजर वापरा.",
         "tip_len": "लांबी किमान 12 अक्षरे करा (पासफ्रेज उत्तम).",
         "tip_lower": "लघ्वाक्षरे जोडा.",
-        "tip_upper": "भाषांतरातील मोठी अक्षरे जोडा.",
+        "tip_upper": "मोठी अक्षरे जोडा.",
         "tip_digit": "अंके समाविष्ट करा.",
         "tip_symbol": "विशेष चिन्हे समाविष्ट करा (!@#...).",
         "tip_common": "सामान्य/लीक पासवर्ड टाळा.",
@@ -311,7 +289,7 @@ T = {
         "saved_history": "इतिहासात जतन केले",
         "type_password": "वर पासवर्ड टाइप करा — विश्लेषण स्थानिक राहते.",
 
-        "passphrase_header": "2) पासफ्रेज जनरेटर",
+        "passphrase_header": "पासफ्रेज जनरेटर",
         "words_in_pass": "पासफ्रेजमधील शब्दांची संख्या",
         "separator": "विभाजक",
         "use_uploaded": "अपलोड केलेली डिक्शनरी वर्डलिस्ट म्हणून वापरा (उपलब्ध असल्यास)",
@@ -329,7 +307,7 @@ T = {
 
         "scenarios_header": "हल्ल्याची परिदृश्ये",
         "show_crack_times": "नमुना पासफ्रेजसाठी क्रॅक वेळ दर्शवा",
-        "scenario": "परिदृश्य",
+        "scenario": "परिदृশ্য",
         "time": "वेळ",
 
         "history_header": "इतिहास आणि निर्यात",
@@ -343,6 +321,7 @@ T = {
         "no_pass_for_pdf": "PDF साठी पासफ्रेज उपलब्ध नाही. प्रथम पासफ्रेज तयार करा किंवा पासवर्ड विश्लेषित करा.",
 
         "footer": "शैक्षणिक डेमो — एंटरप्राइझ ऑडिटर नाही. हॅशिंग धोरणे, रेट-लिमिटिंग, 2FA आणि सुरक्षित स्टोरेज विचारात घ्या.",
+        "about": "परिचय"
     },
 }
 
@@ -671,7 +650,7 @@ def hash_simulation(password: str, algo: str = "sha256", bcrypt_rounds: int = 12
         salt = bcrypt.gensalt(rounds=bcrypt_rounds)
         bh = bcrypt.hashpw(password.encode(), salt)
         elapsed = time.time() - start2
-        return bh.decode() if isinstance(bh, bytes) else str(bh), elapsed
+        return (bh.decode() if isinstance(bh, bytes) else str(bh)), elapsed
     return hashlib.sha256(password.encode()).hexdigest(), time.time() - start
 
 # ========================= Passphrase Generator =========================
@@ -788,9 +767,6 @@ lang_choice = st.sidebar.selectbox(
 st.title(tr(lang_choice, "app_title"))
 st.caption(tr(lang_choice, "app_caption"))
 
-with st.expander(tr(lang_choice, "whats_new")):
-    st.markdown(tr(lang_choice, "whats_new_points"))
-
 # Sidebar controls
 with st.sidebar:
     st.header(tr(lang_choice, "sidebar_settings"))
@@ -801,24 +777,34 @@ with st.sidebar:
     bcrypt_rounds= st.slider(tr(lang_choice, "bcrypt_rounds"), min_value=4, max_value=16, value=12)
 
     st.subheader(tr(lang_choice, "dict_upload"))
-    dict_file = st.file_uploader(tr(lang_choice, "upload_wordlist"), type=["txt"])
+    dict_file = st.file_uploader(tr(lang_choice, "upload_wordlist"), type=["txt"]) 
     if HAS_BCRYPT:
         st.success(tr(lang_choice, "bcrypt_ok"))
     else:
         st.warning(tr(lang_choice, "bcrypt_missing"))
 
+# Load dictionary (cached)
 dictionary = load_dictionary(dict_file)
 
-# Layout columns
-left, right = st.columns((2,1))
+# Tabs for clean UX
+tab_analyze, tab_visuals, tab_history, tab_about = st.tabs([
+    tr(lang_choice, "analyze_header"),
+    tr(lang_choice, "visuals_header"),
+    tr(lang_choice, "history_header"),
+    tr(lang_choice, "about"),
+])
 
-with left:
-    st.header(tr(lang_choice, "analyze_header"))
+# ========================= Analyze Tab =========================
+with tab_analyze:
     password = st.text_input(tr(lang_choice, "enter_password"), type="password")
 
     if password:
+        # Save last analyzed password (masked and raw for PDF)
+        st.session_state.last_password_raw = password
+        st.session_state.last_password_masked = ('*'*min(8,len(password))) + ('…' if len(password)>8 else '')
+
         score, tips_en = strength_score(password)
-        st.subheader(f"Strength: {score}/10")
+        st.subheader(f"{tr(lang_choice,'strength')}: {score}/10")
         st.progress(score/10)
 
         ks_val, cs, flags = detect_charset_size(password)
@@ -863,7 +849,6 @@ with left:
         st.code(str(hash_val)[:120] + ("..." if len(str(hash_val))>120 else ""))
 
         st.subheader(tr(lang_choice, "tips_header"))
-        # Translate generic tips only (pattern notes are already shown above)
         tips_map = {
             "Increase length to at least 12 characters (passphrases are great).": tr(lang_choice, "tip_len"),
             "Add lowercase letters.": tr(lang_choice, "tip_lower"),
@@ -872,17 +857,18 @@ with left:
             "Include special characters (!@#...).": tr(lang_choice, "tip_symbol"),
             "Avoid common or leaked passwords.": tr(lang_choice, "tip_common"),
         }
-        rendered = False
+        rendered_any = False
         for t in tips_en:
             if t in tips_map:
-                st.write("- " + tips_map[t]); rendered=True
-        if not rendered:
+                st.write("- " + tips_map[t])
+                rendered_any = True
+        if not rendered_any:
             st.success(tr(lang_choice, "looks_strong"))
 
         if st.button(tr(lang_choice, "save_to_history")):
             entry = {
                 'time': time.strftime('%Y-%m-%d %H:%M:%S'),
-                'masked': ('*'*min(8,len(password))) + ('…' if len(password)>8 else ''),
+                'masked': st.session_state.last_password_masked,
                 'score': score,
                 'ks_entropy': round(entropy_bits_keyspace,2),
                 'shannon': round(entropy_bits_shannon,2),
@@ -893,26 +879,29 @@ with left:
     else:
         st.info(tr(lang_choice, "type_password"))
 
-    # Passphrase generator
+# ========================= Visuals & Tools Tab =========================
+with tab_visuals:
+    # Passphrase generator first
     st.header(tr(lang_choice, "passphrase_header"))
     colA, colB = st.columns([2,1])
     with colA:
         num_words = st.slider(tr(lang_choice, "words_in_pass"), min_value=3, max_value=8, value=4)
-        separator = st.selectbox(tr(lang_choice, "separator"), [" ", "-", "_"])
+        separator = st.selectbox(tr(lang_choice, "separator"), [" ", "-", "_"]) 
         use_wordlist = st.checkbox(tr(lang_choice, "use_uploaded"), value=False)
     with colB:
         if st.button(tr(lang_choice, "generate_pass")):
             wl = dictionary if use_wordlist and dictionary else DICEWARE_SAMPLE
             phrase = generate_passphrase(num_words=num_words, separator=separator, wordlist=wl)
             st.session_state.generated_passphrase = phrase
+            # Mark as last for PDF if needed
+            st.session_state.last_password_raw = phrase
+            st.session_state.last_password_masked = ('*'*min(8,len(phrase))) + ('…' if len(phrase)>8 else '')
     if 'generated_passphrase' in st.session_state:
         st.text_input(tr(lang_choice, "generated_pass"), value=st.session_state.generated_passphrase, key='gen_pass', disabled=True)
         if st.button(tr(lang_choice, "copy_pass")):
             st.write(tr(lang_choice, "clipboard_note"))
 
-with right:
-    st.header(tr(lang_choice, "visuals_header"))
-    st.subheader(tr(lang_choice, "entropy_vs_length"))
+    st.header(tr(lang_choice, "entropy_vs_length"))
     selected_sets = st.multiselect(tr(lang_choice, "charsets_to_include"), list(CHARSETS.keys()), default=["Lowercase (a-z)", "Uppercase (A-Z)", "Digits (0-9)"])
     max_len = st.slider(tr(lang_choice, "max_len_chart"), min_value=6, max_value=40, value=24)
 
@@ -943,14 +932,17 @@ with right:
     if sample:
         counts = [sum(1 for c in sample if c.islower()), sum(1 for c in sample if c.isupper()), sum(1 for c in sample if c.isdigit()), sum(1 for c in sample if not c.isalnum())]
         labels = ['lower','upper','digits','symbols']
-        fig2, ax2 = plt.subplots()
-        ax2.pie(counts, labels=labels, autopct='%1.1f%%')
-        ax2.set_title('Composition')
-        st.pyplot(fig2)
+        if sum(counts) == 0:
+            st.info("Enter at least one character to show composition.")
+        else:
+            fig2, ax2 = plt.subplots()
+            ax2.pie(counts, labels=labels, autopct='%1.1f%%')
+            ax2.set_title('Composition')
+            st.pyplot(fig2)
 
     st.subheader(tr(lang_choice, "scenarios_header"))
     if st.button(tr(lang_choice, "show_crack_times")):
-        sample_pw = st.session_state.get('gen_pass','Tr0ub4dor!')
+        sample_pw = st.session_state.get('gen_pass', 'Tr0ub4dor!')
         rows = []
         ks_s, cs_s, _ = detect_charset_size(sample_pw)
         for name, speed in [
@@ -963,41 +955,48 @@ with right:
             rows.append({tr(lang_choice,'scenario'): name, tr(lang_choice,'time'): pretty_time(t)})
         st.table(pd.DataFrame(rows))
 
-# ===== History & Export =====
-st.header(tr(lang_choice, 'history_header'))
-if st.session_state.history:
-    df_hist = pd.DataFrame(st.session_state.history)
-    st.dataframe(df_hist)
-    csv = df_hist.to_csv(index=False).encode('utf-8')
-    st.download_button(tr(lang_choice,'download_csv'), data=csv, file_name='password_analysis_history.csv', mime='text/csv')
-    if st.button(tr(lang_choice,'clear_history')):
-        st.session_state.history = []
-        st.experimental_rerun()
-else:
-    st.info(tr(lang_choice,'no_history'))
-
-st.header(tr(lang_choice, 'export_header'))
-if st.button(tr(lang_choice, 'generate_pdf')):
-    pw = None
-    if 'gen_pass' in st.session_state and st.session_state.gen_pass:
-        pw = st.session_state.gen_pass
-    elif 'last' in st.session_state and st.session_state.get('last'):
-        pw = st.session_state.last
-    if pw:
-        score, _ = strength_score(pw)
-        ks_val, cs, _ = detect_charset_size(pw)
-        Hk = len(pw) * (log2(cs) if cs>0 else 0)
-        Hs = shannon_entropy_bits(pw)
-        breached = hibp_breach_count(pw) if online_check else None
-        bf_avg  = estimate_bruteforce_time(ks_val, brute_speed, average=True)
-        bf_worst= estimate_bruteforce_time(ks_val, brute_speed, average=False)
-        dict_t, dict_hit = estimate_dictionary_time(pw, dictionary, dict_speed)
-        hyb_t = estimate_hybrid_time(pw, dictionary, hybrid_speed)
-        _, hash_time = hash_simulation(pw, algo='sha256', bcrypt_rounds=bcrypt_rounds)
-        pdf_bytes = make_pdf_report(lang_choice, pw, score, ks_val, cs, Hk, Hs, breached, bf_avg, bf_worst, dict_t, dict_hit, hyb_t, 'sha256', hash_time)
-        st.download_button(tr(lang_choice,'download_pdf'), data=pdf_bytes, file_name='password_report_extended.pdf', mime='application/pdf')
+# ========================= History & Export Tab =========================
+with tab_history:
+    st.header(tr(lang_choice, 'history_header'))
+    if st.session_state.history:
+        df_hist = pd.DataFrame(st.session_state.history)
+        st.dataframe(df_hist)
+        csv = df_hist.to_csv(index=False).encode('utf-8')
+        st.download_button(tr(lang_choice,'download_csv'), data=csv, file_name='password_analysis_history.csv', mime='text/csv')
+        if st.button(tr(lang_choice,'clear_history')):
+            st.session_state.history = []
+            st.rerun()
     else:
-        st.warning(tr(lang_choice,'no_pass_for_pdf'))
+        st.info(tr(lang_choice,'no_history'))
 
-st.caption(tr(lang_choice, 'footer'))
+    st.header(tr(lang_choice, 'export_header'))
+    if st.button(tr(lang_choice, 'generate_pdf')):
+        pw = None
+        if 'gen_pass' in st.session_state and st.session_state.gen_pass:
+            pw = st.session_state.gen_pass
+        elif 'last_password_raw' in st.session_state:
+            pw = st.session_state.last_password_raw
+        if pw:
+            score, _ = strength_score(pw)
+            ks_val, cs, _ = detect_charset_size(pw)
+            Hk = len(pw) * (log2(cs) if cs>0 else 0)
+            Hs = shannon_entropy_bits(pw)
+            breached = hibp_breach_count(pw) if online_check else None
+            bf_avg  = estimate_bruteforce_time(ks_val, brute_speed, average=True)
+            bf_worst= estimate_bruteforce_time(ks_val, brute_speed, average=False)
+            dict_t, dict_hit = estimate_dictionary_time(pw, dictionary, dict_speed)
+            hyb_t = estimate_hybrid_time(pw, dictionary, hybrid_speed)
+            _, hash_time = hash_simulation(pw, algo='sha256', bcrypt_rounds=bcrypt_rounds)
+            pdf_bytes = make_pdf_report(lang_choice, pw, score, ks_val, cs, Hk, Hs, breached, bf_avg, bf_worst, dict_t, dict_hit, hyb_t, 'sha256', hash_time)
+            st.download_button(tr(lang_choice,'download_pdf'), data=pdf_bytes, file_name='password_report_extended.pdf', mime='application/pdf')
+        else:
+            st.warning(tr(lang_choice,'no_pass_for_pdf'))
+
+# ========================= About Tab =========================
+with tab_about:
+    st.header(tr(lang_choice, "whats_new"))
+    st.markdown(tr(lang_choice, "whats_new_points"))
+    st.caption(tr(lang_choice, 'footer'))
+
+
 
